@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>pixart · 像素转字符</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--text2:#86868b;--accent:#007aff;--border:#e5e5ea;--shadow:0 1px 3px rgba(0,0,0,.08);--radius:12px;--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--mono:"SF Mono","Cascadia Code","Consolas",monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;padding:0 0 80px;min-height:100vh;-webkit-font-smoothing:antialiased}
+.hidden{display:none!important}
+
+.header{position:sticky;top:0;z-index:10;background:rgba(245,245,247,.85);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);padding:12px 16px;display:flex;align-items:center;gap:10px}
+.header h1{font-size:18px;font-weight:700;flex:1;letter-spacing:-.3px}
+.btn-upload{background:var(--accent);color:#fff;border:none;border-radius:20px;padding:8px 18px;font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.btn-upload:active{opacity:.7}
+
+.preview-bar{margin:0 16px;padding:12px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);display:flex;align-items:center;gap:12px}
+.preview-bar img{width:50px;height:50px;object-fit:cover;border-radius:8px;background:var(--border)}
+.preview-bar .info{flex:1;overflow:hidden}
+.preview-bar .info .name{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.preview-bar .info .size{font-size:12px;color:var(--text2)}
+.btn-remove{border:none;background:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px 8px}
+
+.section{margin:12px 16px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.section-title{padding:14px 16px 0;font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.section-body{padding:8px 16px 14px}
+
+.mode-row{display:flex;gap:8px;padding:4px 0}
+.mode-btn{border:1px solid var(--border);border-radius:10px;padding:10px 16px;cursor:pointer;text-align:center;flex:1;font-size:13px;font-weight:500;background:var(--card);color:var(--text2);-webkit-tap-highlight-color:transparent;transition:all .15s}
+.mode-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.mode-btn .sub{font-size:10px;font-weight:400;opacity:.6;margin-top:2px}
+
+.param-row{display:flex;align-items:center;gap:8px;padding:5px 0}
+.param-row .label{width:42px;flex-shrink:0;font-size:13px;color:var(--text2)}
+.param-row .spinner{display:flex;align-items:center;gap:4px}
+.param-row .spinner button{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);-webkit-tap-highlight-color:transparent;user-select:none}
+.param-row .spinner button:active{background:var(--border)}
+.param-row .spinner button:disabled{opacity:.35;cursor:default}
+.param-row .spinner button:disabled:active{background:var(--card)}
+.param-row .spinner .sval{width:52px;height:34px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-family:var(--mono);font-size:15px;font-weight:600;text-align:center;outline:none;-webkit-appearance:none;appearance:textfield;padding:0 4px}
+.param-row .spinner .sval:focus{border-color:var(--accent)}
+.param-row .spinner .sval:disabled{opacity:.4;cursor:default}
+.param-row .spinner .sval::-webkit-inner-spin-button,.param-row .spinner .sval::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.auto-chip{font-size:12px!important;padding:4px 10px!important;flex-shrink:0;margin-left:2px}
+.param-row .fill{flex:1}
+
+.param-row input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:var(--border);outline:none}
+.param-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.param-row input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
+.param-row .range-val{min-width:28px;text-align:right;font-family:var(--mono);font-size:13px;color:var(--text2)}
+
+.chip-group{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0}
+.chip{border:1px solid var(--border);border-radius:16px;padding:6px 14px;font-size:13px;cursor:pointer;background:var(--card);color:var(--text2);-webkit-tap-highlight-color:transparent;user-select:none;transition:all .15s}
+.chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+.toggle-row{display:flex;gap:14px;padding:6px 0}
+.toggle{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;user-select:none}
+.toggle input{display:none}
+.toggle .track{width:42px;height:24px;border-radius:12px;background:var(--border);position:relative;transition:background .2s;flex-shrink:0}
+.toggle .track::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s}
+.toggle input:checked+.track{background:var(--accent)}
+.toggle input:checked+.track::after{left:21px}
+
+.output-wrap{margin:0 16px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.output-header{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.output-header .stats{font-size:12px;color:var(--text2)}
+.output-header .btn-group{display:flex;gap:6px}
+.btn-copy{background:var(--accent);color:#fff;border:none;border-radius:16px;padding:5px 14px;font-size:12px;font-weight:500;cursor:pointer}
+.btn-copy:active{opacity:.7}
+
+.output-body{overflow:auto;max-height:55vh;-webkit-overflow-scrolling:touch}
+.output-body pre{padding:12px;font-family:var(--mono);font-size:9px;line-height:1.15;white-space:pre;min-height:40px;margin:0}
+.output-body pre.empty{color:var(--text2);font-size:13px;font-family:var(--font);text-align:center;padding:40px 16px}
+
+/* color canvas */
+#outputColor{padding:0;overflow:auto;max-height:85vh;-webkit-overflow-scrolling:touch;background:#000}
+#colorCanvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;margin:0 auto}
+
+.placeholder{margin:50px 16px;text-align:center;color:var(--text2)}
+.placeholder .icon{font-size:48px;margin-bottom:8px}
+
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:100}
+.toast.show{opacity:1}
+input[type=file]{display:none}
+
+@media(prefers-color-scheme:dark){
+  :root{--bg:#1c1c1e;--card:#2c2c2e;--text:#f5f5f7;--text2:#8e8e93;--border:#38383a;--shadow:0 1px 3px rgba(0,0,0,.3)}
+  .header{background:rgba(28,28,30,.85)}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>pixart</h1>
+  <button class="btn-upload" id="uploadBtn">📷 选择图片</button>
+</div>
+
+<div class="preview-bar hidden" id="previewBar">
+  <img id="previewThumb" src="" alt="">
+  <div class="info">
+    <div class="name" id="fileName">-</div>
+    <div class="size" id="fileSize">-</div>
+  </div>
+  <button class="btn-remove" id="removeBtn">✕</button>
+</div>
+
+<div class="placeholder" id="placeholder">
+  <div class="icon">🖼</div>
+  <p>点击上方按钮选择图片</p>
+</div>
+
+<!-- mode -->
+<div class="section hidden" id="modeSection">
+  <div class="section-title">模式</div>
+  <div class="section-body">
+    <div class="mode-row" id="modeGroup">
+      <div class="mode-btn active" data-mode="char"><span>🎨 字符画</span><div class="sub">灰度映射</div></div>
+      <div class="mode-btn" data-mode="braille"><span>⠿ 盲文</span><div class="sub">高分辨率</div></div>
+      <div class="mode-btn" data-mode="color"><span>🌈 彩色半块</span><div class="sub">前后景色</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- settings -->
+<div class="section hidden" id="settingsSection">
+  <div class="section-title">尺寸</div>
+  <div class="section-body">
+    <div class="param-row">
+      <span class="label">宽度</span>
+      <div class="spinner">
+        <button data-param="width" data-delta="-5">−</button>
+        <input type="number" class="sval" id="widthInput" value="80" min="10" max="300">
+        <button data-param="width" data-delta="5">+</button>
+      </div>
+      <div class="fill"></div>
+      <span class="label">行数</span>
+      <div class="spinner" id="heightSpinner">
+        <button data-param="height" data-delta="-5">−</button>
+        <input type="number" class="sval" id="heightInput" value="10" min="1" max="200">
+        <button data-param="height" data-delta="5">+</button>
+      </div>
+      <span class="chip auto-chip active" id="autoChip">自动</span>
+    </div>
+    </div>
+  </div>
+  <div class="section-body" style="padding-top:0">
+    <div class="param-row">
+      <span class="label">对比度</span>
+      <input type="range" id="contrastSlider" min="10" max="300" value="100">
+      <span class="range-val" id="contrastVal">1.0</span>
+    </div>
+    <div class="param-row">
+      <span class="label">亮度</span>
+      <input type="range" id="brightnessSlider" min="-100" max="100" value="0">
+      <span class="range-val" id="brightnessVal">0</span>
+    </div>
+    <div class="toggle-row">
+      <label class="toggle"><input type="checkbox" id="invertToggle"><span class="track"></span>反色</label>
+      <label class="toggle"><input type="checkbox" id="ditherToggle"><span class="track"></span>抖动</label>
+      <label class="toggle"><input type="checkbox" id="sharpToggle"><span class="track"></span>锐化</label>
+    </div>
+  </div>
+  <!-- char-set (only in char mode) -->
+  <div class="section-body char-only" style="padding-top:0">
+    <div class="chip-group" id="charSetGroup">
+      <span class="chip active" data-ramp="detailed">精细</span>
+      <span class="chip" data-ramp="blocks">方块</span>
+      <span class="chip" data-ramp="minimal">极简</span>
+      <span class="chip" data-ramp="ascii">ASCII</span>
+    </div>
+  </div>
+  <!-- braille threshold (only in braille mode) -->
+  <div class="section-body braille-only hidden" style="padding-top:0">
+    <div class="param-row">
+      <span class="label">阈值</span>
+      <input type="range" id="brailleThresSlider" min="1" max="99" value="50">
+      <span class="range-val" id="brailleThresVal">50</span>
+    </div>
+  </div>
+</div>
+
+<!-- output (text: char + braille) -->
+<div class="output-wrap hidden" id="outputWrap">
+  <div class="output-header">
+    <span class="stats" id="statsText">-</span>
+    <div class="btn-group">
+      <button class="btn-copy hidden" id="ansiCopyBtn">📋 复制 ANSI</button>
+      <button class="btn-copy" id="copyBtn">📋 复制</button>
+    </div>
+  </div>
+  <div class="output-body">
+    <pre class="empty" id="outputPre">点击转换生成</pre>
+  </div>
+  <div class="output-body hidden" id="outputColor">
+    <canvas id="colorCanvas"></canvas>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" accept="image/*">
+
+<script>
+// ── Ramps & constants ────────────────────────────────────
+const RAMPS = {
+  detailed: '$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,"^\'`. ',
+  blocks:   '█▓▒░ ',
+  minimal:  '#. ',
+  ascii:    '@%#*+=-:. ',
+};
+const DMAT = [1, 8, 2, 16, 4, 32, 64, 128];
+
+// ── State ────────────────────────────────────────────────
+const state = {
+  image: null,
+  mode: 'char',
+  width: 80,
+  height: 0,
+  lastManualHeight: 10,
+  charSet: 'detailed',
+  invert: false,
+  dither: false,
+  sharp: false,
+  contrast: 100,
+  brightness: 0,
+  brailleThres: 50,
+};
+
+// ── DOM ──────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const previewBar   = $('previewBar');
+const previewThumb = $('previewThumb');
+const fileName     = $('fileName');
+const fileSize     = $('fileSize');
+const removeBtn    = $('removeBtn');
+const placeholder  = $('placeholder');
+const modeSection  = $('modeSection');
+const settingsSec  = $('settingsSection');
+const outputWrap   = $('outputWrap');
+const outputPre    = $('outputPre');
+const outputColor  = $('outputColor');
+const colorCanvas  = $('colorCanvas');
+const statsText    = $('statsText');
+const copyBtn      = $('copyBtn');
+const ansiCopyBtn  = $('ansiCopyBtn');
+const fileInput    = $('fileInput');
+const uploadBtn    = $('uploadBtn');
+const widthInput   = $('widthInput');
+const heightInput  = $('heightInput');
+const autoChip     = $('autoChip');
+const contrastSlider = $('contrastSlider');
+const brightnessSlider = $('brightnessSlider');
+const contrastVal  = $('contrastVal');
+const brightnessVal= $('brightnessVal');
+const invertToggle = $('invertToggle');
+const ditherToggle = $('ditherToggle');
+const sharpToggle  = $('sharpToggle');
+const charSetGroup = $('charSetGroup');
+const modeGroup    = $('modeGroup');
+const brailleThresSlider = $('brailleThresSlider');
+const brailleThresVal = $('brailleThresVal');
+const charOnlyEls  = document.querySelectorAll('.char-only');
+const brailleOnlyEls = document.querySelectorAll('.braille-only');
+const colorOnlyEls = document.querySelectorAll('.color-only');
+const toastEl      = $('toast');
+
+let toastTimer = null;
+let lastAnsi = ''; // cached ANSI for copy
+
+function showToast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000); }
+
+// ── File ─────────────────────────────────────────────────
+uploadBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      state.image = img;
+      previewThumb.src = img.src;
+      fileName.textContent = file.name;
+      const kb = (file.size / 1024).toFixed(1);
+      fileSize.textContent = `${img.naturalWidth}×${img.naturalHeight}  ${kb}KB`;
+      previewBar.classList.remove('hidden');
+      placeholder.classList.add('hidden');
+      modeSection.classList.remove('hidden');
+      settingsSec.classList.remove('hidden');
+      convert();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  fileInput.value = '';
+});
+
+removeBtn.addEventListener('click', () => {
+  state.image = null;
+  previewBar.classList.add('hidden');
+  placeholder.classList.remove('hidden');
+  modeSection.classList.add('hidden');
+  settingsSec.classList.add('hidden');
+  outputWrap.classList.add('hidden');
+});
+
+// ── Mode ─────────────────────────────────────────────────
+modeGroup.addEventListener('click', e => {
+  const btn = e.target.closest('.mode-btn');
+  if (!btn) return;
+  const mode = btn.dataset.mode;
+  if (mode === state.mode) return;
+  state.mode = mode;
+  modeGroup.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const isChar = mode === 'char';
+  const isBraille = mode === 'braille';
+  const isColor = mode === 'color';
+  charOnlyEls.forEach(el => el.classList.toggle('hidden', !isChar));
+  brailleOnlyEls.forEach(el => el.classList.toggle('hidden', !isBraille));
+  colorOnlyEls.forEach(el => el.classList.toggle('hidden', !isColor));
+
+  if (state.image) convert();
+});
+
+// ── Spinners ─────────────────────────────────────────────
+document.querySelectorAll('[data-param]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const param = btn.dataset.param;
+    const delta = parseInt(btn.dataset.delta);
+    if (param === 'width') {
+      let v = parseInt(widthInput.value) || 80;
+      v = Math.max(10, Math.min(300, v + delta));
+      state.width = v;
+      widthInput.value = v;
+    } else if (param === 'height') {
+      if (autoChip.classList.contains('active')) return;
+      let v = parseInt(heightInput.value) || 10;
+      v = Math.max(1, Math.min(200, v + delta));
+      state.height = v;
+      state.lastManualHeight = v;
+      heightInput.value = v;
+    }
+    if (state.image) convert();
+  });
+});
+
+// ── Height auto chip ─────────────────────────────────────
+const heightSpinner = document.getElementById('heightSpinner');
+const heightBtns = heightSpinner.querySelectorAll('button');
+
+function setHeightAuto(enabled) {
+  autoChip.classList.toggle('active', enabled);
+  heightInput.disabled = enabled;
+  heightBtns.forEach(b => b.disabled = enabled);
+  if (enabled) {
+    state.height = 0;
+    heightInput.value = '';
+    heightInput.placeholder = '自动';
+  } else {
+    state.height = state.lastManualHeight;
+    heightInput.value = state.lastManualHeight;
+    heightInput.placeholder = '';
+  }
+}
+
+autoChip.addEventListener('click', () => {
+  const wasAuto = autoChip.classList.contains('active');
+  setHeightAuto(!wasAuto);
+  if (state.image) convert();
+});
+
+// ── Manual input ─────────────────────────────────────────
+widthInput.addEventListener('input', () => {
+  let v = parseInt(widthInput.value);
+  if (isNaN(v) || v < 10) v = 10;
+  if (v > 300) v = 300;
+  state.width = v;
+  widthInput.value = v;
+  if (state.image) convert();
+});
+heightInput.addEventListener('input', () => {
+  if (heightInput.disabled) return;
+  let v = parseInt(heightInput.value);
+  if (isNaN(v) || v < 1) v = 1;
+  if (v > 200) v = 200;
+  state.height = v;
+  state.lastManualHeight = v;
+  heightInput.value = v;
+  if (state.image) convert();
+});
+
+// ── Char set ─────────────────────────────────────────────
+charSetGroup.addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  charSetGroup.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  state.charSet = chip.dataset.ramp;
+  if (state.image) convert();
+});
+
+// ── Toggles & sliders ────────────────────────────────────
+invertToggle.addEventListener('change', () => { state.invert = invertToggle.checked; if (state.image) convert(); });
+ditherToggle.addEventListener('change', () => { state.dither = ditherToggle.checked; if (state.image) convert(); });
+sharpToggle.addEventListener('change', () => { state.sharp = sharpToggle.checked; if (state.image) convert(); });
+contrastSlider.addEventListener('input', () => { state.contrast = +contrastSlider.value; contrastVal.textContent = (state.contrast / 100).toFixed(1); if (state.image) convert(); });
+brightnessSlider.addEventListener('input', () => { state.brightness = +brightnessSlider.value; brightnessVal.textContent = state.brightness; if (state.image) convert(); });
+brailleThresSlider.addEventListener('input', () => { state.brailleThres = +brailleThresSlider.value; brailleThresVal.textContent = state.brailleThres; if (state.image) convert(); });
+
+// ── Copy ─────────────────────────────────────────────────
+copyBtn.addEventListener('click', () => {
+  const text = outputPre.textContent;
+  if (!text || outputPre.classList.contains('empty')) { showToast('没有内容可复制'); return; }
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
+  else { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); showToast('✅ 已复制'); }
+});
+
+ansiCopyBtn.addEventListener('click', () => {
+  if (!lastAnsi) { showToast('没有 ANSI 内容'); return; }
+  if (navigator.clipboard) navigator.clipboard.writeText(lastAnsi).then(() => showToast('✅ ANSI 已复制'));
+  else { const ta = document.createElement('textarea'); ta.value = lastAnsi; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); showToast('✅ ANSI 已复制'); }
+});
+
+// ── Floyd-Steinberg ──────────────────────────────────────
+function floydSteinberg(grid, levels) {
+  const h = grid.length, w = grid[0].length;
+  const step = 255 / (levels - 1);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const old = grid[y][x];
+      let idx = Math.round(old / step);
+      idx = Math.max(0, Math.min(levels - 1, idx));
+      const nv = idx * step;
+      grid[y][x] = nv;
+      const err = old - nv;
+      if (x + 1 < w) grid[y][x + 1] += err * 7 / 16;
+      if (y + 1 < h) {
+        if (x - 1 >= 0) grid[y + 1][x - 1] += err * 3 / 16;
+        grid[y + 1][x] += err * 5 / 16;
+        if (x + 1 < w) grid[y + 1][x + 1] += err * 1 / 16;
+      }
+    }
+  }
+}
+function floydSteinbergBinary(grid, th) {
+  const h = grid.length, w = grid[0].length;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const old = grid[y][x];
+      const nv = old < th ? 0 : 255;
+      grid[y][x] = nv;
+      const err = old - nv;
+      if (x + 1 < w) grid[y][x + 1] += err * 7 / 16;
+      if (y + 1 < h) {
+        if (x - 1 >= 0) grid[y + 1][x - 1] += err * 3 / 16;
+        grid[y + 1][x] += err * 5 / 16;
+        if (x + 1 < w) grid[y + 1][x + 1] += err * 1 / 16;
+      }
+    }
+  }
+}
+
+// ── Convert: char ────────────────────────────────────────
+function convertChar(img, w, h) {
+  const ramp = RAMPS[state.charSet], rl = ramp.length;
+  const sh = Math.round(h * 2);
+  const c = document.createElement('canvas'); c.width = w; c.height = sh;
+  const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = !state.sharp; ctx.drawImage(img, 0, 0, w, sh);
+  const d = ctx.getImageData(0, 0, w, sh).data;
+  const sv = sh / h;
+  const grid = [];
+  for (let r = 0; r < h; r++) {
+    grid[r] = [];
+    const s0 = Math.floor(r * sv), s1 = Math.min(sh, Math.floor((r + 1) * sv));
+    for (let c2 = 0; c2 < w; c2++) {
+      let t = 0, n = 0;
+      for (let sy = s0; sy < s1; sy++) {
+        const i = (sy * w + c2) * 4, a = d[i+3] / 255;
+        t += (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) * a + 255 * (1 - a); n++;
+      }
+      let v = t / (n || 1);
+      v = (v - 128) * (state.contrast / 100) + 128 + state.brightness;
+      grid[r][c2] = Math.max(0, Math.min(255, v));
+    }
+  }
+  if (state.dither && rl > 1) floydSteinberg(grid, rl);
+  const lines = [];
+  for (let r = 0; r < h; r++) {
+    let line = '';
+    for (let c2 = 0; c2 < w; c2++) {
+      let v = Math.max(0, Math.min(255, grid[r][c2]));
+      let idx = state.invert ? rl - 1 - Math.floor(v * (rl - 1) / 255) : Math.floor(v * (rl - 1) / 255);
+      line += ramp[Math.max(0, Math.min(rl - 1, idx))];
+    }
+    lines.push(line);
+  }
+  return lines.join('\n');
+}
+
+// ── Convert: braille ─────────────────────────────────────
+function convertBraille(img, cols, rows) {
+  const sw = cols * 2, sh = rows * 4, th = state.brailleThres / 100 * 255, invert = state.invert;
+  const c = document.createElement('canvas'); c.width = sw; c.height = sh;
+  const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = !state.sharp; ctx.drawImage(img, 0, 0, sw, sh);
+  const d = ctx.getImageData(0, 0, sw, sh).data;
+  const grid = [];
+  for (let y = 0; y < sh; y++) {
+    grid[y] = [];
+    for (let x = 0; x < sw; x++) {
+      const i = (y * sw + x) * 4, a = d[i+3] / 255;
+      let lum = (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) * a + 255 * (1 - a);
+      lum = (lum - 128) * (state.contrast / 100) + 128 + state.brightness;
+      grid[y][x] = Math.max(0, Math.min(255, lum));
+    }
+  }
+  if (state.dither) floydSteinbergBinary(grid, invert ? 255 - th : th);
+  const lines = [];
+  for (let r = 0; r < rows; r++) {
+    let line = '';
+    for (let c2 = 0; c2 < cols; c2++) {
+      let code = 0;
+      for (let k = 0; k < 8; k++) {
+        const px = c2 * 2 + (k % 2), py = r * 4 + Math.floor(k / 2);
+        const dot = invert ? grid[py][px] > 255 - th : grid[py][px] < th;
+        if (dot) code += DMAT[k];
+      }
+      line += String.fromCharCode(code + 0x2800);
+    }
+    lines.push(line);
+  }
+  return lines.join('\n');
+}
+
+// ── Convert: color half-block ────────────────────────────
+function convertColor(img, w, h) {
+  // Each char ▀ shows top half in fg colour, bottom half in bg colour.
+  // We sample at w × (h*2) pixels, then render to a canvas with 1:2 cells.
+  const sh = h * 2;
+  const c = document.createElement('canvas'); c.width = w; c.height = sh;
+  const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = !state.sharp; ctx.drawImage(img, 0, 0, w, sh);
+  const d = ctx.getImageData(0, 0, w, sh).data;
+
+  // Canvas output: each cell = 4×8 px (1:2 ratio matches monospace font aspect)
+  const cellW = 4, cellH = 8;
+  const outW = w * cellW, outH = h * cellH;
+  colorCanvas.width = outW;
+  colorCanvas.height = outH;
+  // Fit canvas display to parent width, preserving pixel aspect
+  const fit = () => {
+    const maxW = outputColor.clientWidth;
+    if (maxW > 0) {
+      const h2 = Math.round(maxW * outH / outW);
+      colorCanvas.style.width = maxW + 'px';
+      colorCanvas.style.height = h2 + 'px';
+    }
+  };
+  fit();
+  setTimeout(fit, 50);
+  const out = colorCanvas.getContext('2d');
+
+  const opts = state.invert;
+  const cr = state.contrast / 100, br = state.brightness;
+  const ansiRows = [];
+
+  function adj(ch) {
+    let v = ch;
+    v = (v - 128) * cr + 128 + br;
+    return Math.max(0, Math.min(255, Math.round(v)));
+  }
+
+  for (let r = 0; r < h; r++) {
+    let ansiLine = '';
+    const py0 = r * 2, py1 = r * 2 + 1;
+    for (let c2 = 0; c2 < w; c2++) {
+      const i0 = (py0 * w + c2) * 4, i1 = (py1 * w + c2) * 4;
+      // top pixel
+      let r0 = opts ? 255 - d[i0] : d[i0], g0 = opts ? 255 - d[i0+1] : d[i0+1], b0 = opts ? 255 - d[i0+2] : d[i0+2], a0 = d[i0+3] / 255;
+      r0 = adj(Math.round((r0 * a0 + 255 * (1 - a0))));
+      g0 = adj(Math.round((g0 * a0 + 255 * (1 - a0))));
+      b0 = adj(Math.round((b0 * a0 + 255 * (1 - a0))));
+      // bottom pixel
+      let r1 = opts ? 255 - d[i1] : d[i1], g1 = opts ? 255 - d[i1+1] : d[i1+1], b1 = opts ? 255 - d[i1+2] : d[i1+2], a1 = d[i1+3] / 255;
+      r1 = adj(Math.round((r1 * a1 + 255 * (1 - a1))));
+      g1 = adj(Math.round((g1 * a1 + 255 * (1 - a1))));
+      b1 = adj(Math.round((b1 * a1 + 255 * (1 - a1))));
+
+      // Draw top half (cellW × cellH/2)
+      out.fillStyle = `rgb(${r0},${g0},${b0})`;
+      out.fillRect(c2 * cellW, r * cellH, cellW, cellH / 2);
+      // Draw bottom half
+      out.fillStyle = `rgb(${r1},${g1},${b1})`;
+      out.fillRect(c2 * cellW, r * cellH + cellH / 2, cellW, cellH / 2);
+
+      ansiLine += `\x1b[38;2;${r0};${g0};${b0}m\x1b[48;2;${r1};${g1};${b1}m▀\x1b[0m`;
+    }
+    ansiRows.push(ansiLine);
+  }
+  lastAnsi = ansiRows.join('\n');
+}
+
+// ── Main convert ─────────────────────────────────────────
+function convert() {
+  if (!state.image) return;
+  const img = state.image, iw = img.naturalWidth, ih = img.naturalHeight;
+  const w = state.width;
+  let h = state.height;
+  if (h === 0) {
+    h = state.mode === 'color'
+      ? Math.max(1, Math.round(ih / iw * w / 2))     // half-block: 2× per char
+      : Math.max(1, Math.round(ih / iw * w / 2));
+  }
+  // Update disabled input with computed height when auto is active
+  if (autoChip.classList.contains('active')) {
+    heightInput.value = h;
+  }
+
+  outputPre.classList.remove('empty');
+
+  if (state.mode === 'color') {
+    // Show canvas, hide text pre
+    outputPre.classList.add('hidden');
+    outputColor.classList.remove('hidden');
+    ansiCopyBtn.classList.remove('hidden');
+    copyBtn.classList.add('hidden');
+
+    convertColor(img, w, h);
+    statsText.textContent = `${w}×${h} 字符  ·  彩色半块`;
+    outputWrap.classList.remove('hidden');
+    return;
+  }
+
+  // text modes (char / braille)
+  outputPre.classList.remove('hidden');
+  outputColor.classList.add('hidden');
+  ansiCopyBtn.classList.add('hidden');
+  copyBtn.classList.remove('hidden');
+
+  let art, label;
+  if (state.mode === 'braille') { art = convertBraille(img, w, h); label = '盲文'; }
+  else { art = convertChar(img, w, h); label = state.charSet; }
+
+  outputPre.textContent = art || '(空)';
+  outputWrap.classList.remove('hidden');
+  const chars = art.replace(/\n/g, '').length;
+  statsText.textContent = `${w}×${h}  ·  ${chars}字符  ·  ${label}`;
+}
+
+// ── Init auto state on load ──────────────────────────────
+setHeightAuto(true);
+
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - (document.lastTouch || 0) < 300) e.preventDefault();
+  document.lastTouch = now;
+}, { passive: false });
+</script>
+</body>
+</html>
